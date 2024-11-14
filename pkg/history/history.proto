@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+option go_package = "github.com/jacobmiller22/hisight/pkg/history";
+
+package history;
+
+
+// Interface exported by the server.
+service History {
+    rpc LogCommand(Command) returns (Ack) {}
+}
+
+message Command {
+    
+    string aliased = 1;
+    string expanded_preview = 2;
+    string expanded_full = 3;
+}
+
+message Ack {
+}
+
