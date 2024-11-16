@@ -9,7 +9,7 @@ import (
 	"os"
 	"strconv"
 
-	pb "github.com/jacobmiller22/hisight/pkg/history"
+	pb "github.com/jacobmiller22/hisight/proto"
 	_ "github.com/mattn/go-sqlite3"
 	"google.golang.org/grpc"
 )

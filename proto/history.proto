@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/jacobmiller22/hisight/proto";
+
+package history;
+
+
+// Interface exported by the server.
+service History {
+    rpc LogCommand(Command) returns (Ack) {}
+}
+
+message Command {
+    int32 version = 1;
+    string aliased = 2;
+    string expanded_preview = 3;
+    string expanded_full = 4;
+    google.protobuf.Timestamp start_ts = 5;
+    google.protobuf.Timestamp end_ts = 6;
+
+    PeerInfo peer_info = 7;
+
+    optional TmuxInfo tmux_indo = 8;
+}
+
+message PeerInfo {
+    string ip = 1;
+}
+
+message TmuxInfo {
+    string session = 1;
+    string window = 2;
+    string pane = 3;
+}
+
+message Ack {
+}
+
