@@ -1,0 +1,46 @@
+FROM golang:1.24
+
+WORKDIR /tmp
+
+# Install helpers
+RUN apt update && apt -y install \
+	git \
+	protobuf-compiler \
+	file \
+	make;
+
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest;
+RUN go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest;
+
+# Migrate DB Stuff
+
+RUN git clone https://github.com/golang-migrate/migrate.git;
+
+WORKDIR /tmp/migrate
+
+RUN go build -tags 'sqlite3' -o ./bin/migrate ./cmd/migrate;
+RUN cp ./bin/migrate /go/bin/;
+
+WORKDIR /app
+
+# Build apps
+
+COPY go.mod go.sum ./
+RUN go mod download;
+
+COPY . .
+
+# RUN ./cmd/migrate -database "sqlite3://dev.db" -path db/migrations up;
+
+RUN make build-amd64;
+
+
+# Install additional helpers
+RUN apt -y install \
+	neovim;
+
+RUN echo 'export PATH=$PATH:/app/bin' >> ~/.bashrc;
+RUN echo 'eval "$(bashHook)"' >> ~/.bashrc;
+
+
+CMD ["bash"]

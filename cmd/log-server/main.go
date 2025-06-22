@@ -1,48 +1,28 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"log"
+	"log/slog"
 	"net"
 	"os"
-	"strconv"
 
-	pb "github.com/jacobmiller22/hisight/proto"
+	"github.com/jacobmiller22/hisight/internal/commands"
+	pb "github.com/jacobmiller22/hisight/internal/commands/proto"
+	"github.com/jacobmiller22/hisight/internal/commands/repository"
 	_ "github.com/mattn/go-sqlite3"
 	"google.golang.org/grpc"
 )
 
-type LogServer struct {
-	pb.UnimplementedHistoryServer
-	DB *sql.DB
-}
-
-func NewServer(db *sql.DB) *LogServer {
-	return &LogServer{
-		DB: db,
-	}
-}
-
-func (s *LogServer) LogCommand(ctx context.Context, command *pb.Command) (*pb.Ack, error) {
-	log.Printf("Received log command %v\n", command.Aliased)
-
-	// s.DB.Exec("INSERT INTO commands (command_text) VALUES (?);", command.Aliased)
-	stmt, _ := s.DB.Prepare("INSERT INTO commands (command_text) VALUES (?)")
-
-	stmt.Exec(command.Aliased)
-
-	return &pb.Ack{}, nil
-}
-
 func main() {
-	args := os.Args
+	// ctx := context.Background()
 
-	portStr := args[1]
-	port, err := strconv.ParseUint(portStr, 10, 16)
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-	db, err := sql.Open("sqlite3", "./database.db")
+	port := 9001
+
+	db, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {
 		log.Fatalf("Error opening db: %v\n", err)
 	}
@@ -61,7 +41,12 @@ func main() {
 	var opts []grpc.ServerOption
 
 	grpcServer := grpc.NewServer(opts...)
-	pb.RegisterHistoryServer(grpcServer, NewServer(db))
+	cmdRepo := repository.New(db)
+	cmdSvc := commands.CommandService{
+		Repo:   cmdRepo,
+		Logger: logger,
+	}
+	pb.RegisterCommandServiceServer(grpcServer, cmdSvc)
 
 	log.Printf("Starting server on port %d\n", port)
 

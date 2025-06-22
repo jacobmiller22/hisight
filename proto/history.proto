@@ -1,15 +1,16 @@
 syntax = "proto3";
 
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
 
-option go_package = "github.com/jacobmiller22/hisight/proto";
+option go_package = "github.com/jacobmiller22/hisight/internal/commands/proto";
 
-package history;
+package commands;
 
 
 // Interface exported by the server.
-service History {
-    rpc LogCommand(Command) returns (Ack) {}
+service CommandService {
+    rpc LogCommand(Command) returns (google.protobuf.Empty) {}
 }
 
 message Command {
@@ -35,6 +36,4 @@ message TmuxInfo {
     string pane = 3;
 }
 
-message Ack {
-}
 

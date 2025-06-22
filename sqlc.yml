@@ -1,0 +1,10 @@
+version: "2"
+sql:
+  - engine: "sqlite"
+    queries: "internal/commands/repository/commands.sql"
+    schema: "db/migrations/000001_db.up.sql"
+    gen:
+      go:
+        package: "repository"
+        out: "internal/commands/repository"
+        emit_json_tags: true
