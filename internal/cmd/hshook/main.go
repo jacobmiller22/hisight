@@ -11,11 +11,6 @@ type HookContext struct {
 
 func main() {
 
-	// var target string
-	// if len(os.Args) > 2 {
-	// 	target = os.Args[1]
-	// }
-
 	target := "bash"
 
 	sh := DetectShell(target)

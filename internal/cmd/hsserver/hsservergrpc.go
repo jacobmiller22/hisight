@@ -1,7 +1,8 @@
-package main
+package hsserver
 
 import (
 	"database/sql"
+	"flag"
 	"fmt"
 	"log"
 	"log/slog"
@@ -15,14 +16,21 @@ import (
 	"google.golang.org/grpc"
 )
 
-func main() {
-	// ctx := context.Background()
+func HsServerGrpc(args []string) error {
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-	port := 9001
+	fset := flag.NewFlagSet("hslog", flag.ContinueOnError)
 
-	db, err := sql.Open("sqlite3", ":memory:")
+	var cfg config
+	fset.IntVar(&cfg.http.port, "http-port", 9001, "Port to listen on for HTTP requests")
+	fset.StringVar(&cfg.db.dsn, "db-dsn", ":memory:", "DSN to database")
+	if err := fset.Parse(args); err != nil {
+		return nil // NOTE: Hack, ContinueOnError prints usage for us
+
+	}
+
+	db, err := sql.Open("sqlite3", cfg.db.dsn)
 	if err != nil {
 		log.Fatalf("Error opening db: %v\n", err)
 	}
@@ -33,9 +41,9 @@ func main() {
 		log.Fatalf("Error creating commands table: %v\n", err)
 	}
 
-	lis, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", cfg.http.port))
 	if err != nil {
-		log.Fatalf("Failed trying to listen on port %d: %v", port, err)
+		log.Fatalf("Failed trying to listen on port %d: %v", cfg.http.port, err)
 	}
 
 	var opts []grpc.ServerOption
@@ -48,7 +56,8 @@ func main() {
 	}
 	pb.RegisterCommandServiceServer(grpcServer, cmdSvc)
 
-	log.Printf("Starting server on port %d\n", port)
+	log.Printf("Starting server on port %d\n", cfg.http.port)
 
-	grpcServer.Serve(lis)
+	grpcServer.Serve(listener)
+	return nil
 }
