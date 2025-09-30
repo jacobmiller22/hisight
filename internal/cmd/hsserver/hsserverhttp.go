@@ -1,33 +1,36 @@
 package hsserver
 
 import (
-	"flag"
+	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
-	"os"
 
 	"github.com/jacobmiller22/hisight/internal/commands"
-	commandsrepository "github.com/jacobmiller22/hisight/internal/commands/repository"
+	"github.com/jacobmiller22/hisight/internal/commands/protocol/json"
+	"github.com/jacobmiller22/hisight/internal/commands/protocol/sql"
+	"github.com/jacobmiller22/hisight/internal/config"
+	"github.com/jacobmiller22/hisight/internal/logkeys"
+
+	"github.com/jacobmiller22/gossentials/clog"
 )
 
-func HsServerHttp(args []string) error {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+func HsServerHttp(ctx context.Context, args []string) error {
+	l := clog.FromContext(ctx)
+	cfg := config.LoadConfig(args)
 
-	fset := flag.NewFlagSet("hslog", flag.ContinueOnError)
+	l.Debug(logkeys.CommandStart, logkeys.Command, "HSSERVER_HTTP", logkeys.Config, cfg)
 
-	var cfg httpConfig
-	fset.IntVar(&cfg.http.port, "http-port", 9000, "Port to listen on for HTTP requests")
-	fset.StringVar(&cfg.db.dsn, "db-dsn", "db.sqlite", "DSN to database")
-	if err := fset.Parse(args); err != nil {
-		return nil // NOTE: Hack, ContinueOnError prints usage for us
+	db, err := openDb(cfg.DB.DSN)
+	if err != nil {
+		l.Info(logkeys.DbConnectError, "dsn", cfg.DB.DSN, logkeys.Error, err)
 	}
+	defer db.Close()
 
-	cmdRepo := &commandsrepository.Queries{}
+	cmdRepo := sql.New(db)
 
-	cmdSvc := &commands.CommandService{Repo: cmdRepo, Logger: logger}
+	cmdSvc := &commands.CommandService{Repo: cmdRepo, Logger: l}
 
-	cmdRoutes := commands.CommandRoutes{CmdSvc: cmdSvc}
+	cmdRoutes := json.CommandRoutes{CmdSvc: cmdSvc}
 
 	mux := http.NewServeMux()
 
@@ -35,10 +38,10 @@ func HsServerHttp(args []string) error {
 	mux.Handle("POST /commands", cmdRoutes.CreateCommandHandler())
 	mux.Handle("GET /commands/{commandId}", cmdRoutes.GetCommandHandler())
 
-	addr := fmt.Sprintf(":%d", cfg.http.port)
-	logger.Info("SERVER_INIT_START", "port", cfg.http.port)
+	addr := fmt.Sprintf(":%d", cfg.Server.HTTP.Port)
+	l.Info("SERVER_INIT_START", "port", cfg.Server.HTTP.Port, "protocol", "http")
 	if err := http.ListenAndServe(addr, mux); err != nil {
-		logger.Error("SERVER_INIT_ERROR", "err", err)
+		l.Error("SERVER_INIT_ERROR", "protocol", "http", "err", err)
 		return err
 	}
 	return nil

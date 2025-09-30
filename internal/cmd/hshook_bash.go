@@ -1,6 +1,9 @@
 package cmd
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type bash struct{}
 
@@ -14,7 +17,7 @@ _hslog_hook() {
         [[ "$BASH_COMMAND" == hslog* ]] && return $previous_exit_status
 
         trap --  SIGINT; # ignore sigint
-        hslog $BASH_COMMAND
+        hslog log $HSLOG_ARGS $BASH_COMMAND
         trap - SIGINT; # restore sigint
 
         return $previous_exit_status;
@@ -22,8 +25,12 @@ _hslog_hook() {
 [[ $- == *i* ]] && trap '_hslog_hook' DEBUG
 `
 
-func (sh bash) Hook() (string, error) {
-	return bashHook, nil
+func (sh bash) Name() string {
+	return "bash"
+}
+
+func (sh bash) Hook(args string) (string, error) {
+	return strings.ReplaceAll(bashHook, "$HSLOG_ARGS", args), nil
 }
 
 /*

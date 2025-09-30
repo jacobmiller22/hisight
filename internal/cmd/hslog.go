@@ -2,31 +2,46 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"strings"
 
-	"google.golang.org/grpc/credentials/insecure"
+	pb "github.com/jacobmiller22/hisight/internal/commands/protocol/pb"
+	"github.com/jacobmiller22/hisight/internal/config"
+	"github.com/jacobmiller22/hisight/internal/logkeys"
 
-	pb "github.com/jacobmiller22/hisight/internal/commands/proto"
+	"github.com/jacobmiller22/gossentials/clog"
+
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
-func HsLog(args []string) error {
+var ErrUnknownLogLevel error = errors.New("unknown log level")
 
-	fmt.Println("hslog!")
-	ctx := context.Background()
+const hsLogUsage string = "Usage:\n\thslog [flags] [command]"
 
-	target := fmt.Sprintf("127.0.0.1:%d", 3000)
+func HsLog(ctx context.Context, args []string) error {
+
+	l := clog.FromContext(ctx)
+	cfg := config.LoadConfig(args)
+
+	l.Debug(logkeys.CommandStart, logkeys.Command, "HSLOG", logkeys.Config, cfg)
+
+	if len(args) < 1 {
+		return fmt.Errorf(hsLogUsage)
+	}
 
 	conn, err := grpc.NewClient(
-		target,
+		cfg.Server.GRPC.Host,
 		grpc.WithTransportCredentials(
 			insecure.NewCredentials(),
 		),
 	)
 
 	if err != nil {
-		log.Fatalf("Error while dialiing grpc server: %v", err)
+		l.Error("GRPC_CHANNEL_CREATION_ERROR", "err", err)
+		return err
 	}
 
 	defer conn.Close()
@@ -34,9 +49,8 @@ func HsLog(args []string) error {
 	cmdSvc := pb.NewCommandServiceClient(conn)
 
 	_, err = cmdSvc.LogCommand(ctx, &pb.Command{
-		Aliased:         args[1],
-		ExpandedPreview: args[2],
-		ExpandedFull:    args[3],
+		Shell:   "",
+		Command: strings.Join(args, " "),
 	})
 	if err != nil {
 		log.Fatalf("Error received from LogCommand: %v", err)

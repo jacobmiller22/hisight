@@ -1,14 +1,21 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/template"
+
+	"github.com/jacobmiller22/hisight/internal/config"
+	"github.com/jacobmiller22/hisight/internal/logkeys"
+
+	"github.com/jacobmiller22/gossentials/clog"
 )
 
-const usage string = "Usage:\n\thshook [shell] [args]"
+const hsHookUsage string = "Usage:\n\thshook [shell] [args]"
 
 var ErrUnsupportedHook error = errors.New("unsupported hook")
 
@@ -16,10 +23,15 @@ type HookContext struct {
 	SelfPath string
 }
 
-func HsHook(args []string) error {
+func HsHook(ctx context.Context, args []string) error {
+
+	l := clog.FromContext(ctx)
+	cfg := config.LoadConfig(args)
+
+	l.Debug(logkeys.CommandStart, logkeys.Command, "HSHOOK", logkeys.Config, cfg)
 
 	if len(args) < 1 {
-		return fmt.Errorf(usage)
+		return fmt.Errorf(hsHookUsage)
 	}
 	target := args[0]
 
@@ -29,7 +41,7 @@ func HsHook(args []string) error {
 		return fmt.Errorf("%w: %s not supported", ErrUnsupportedHook, target)
 	}
 
-	hookStr, err := sh.Hook()
+	hookStr, err := sh.Hook(strings.Join(args[1:], " "))
 	if err != nil {
 		return fmt.Errorf("error calling Hook()")
 	}
@@ -54,7 +66,8 @@ func HsHook(args []string) error {
 }
 
 type Shell interface {
-	Hook() (string, error)
+	Name() string
+	Hook(args string) (string, error)
 }
 
 var supportedShellList = map[string]Shell{

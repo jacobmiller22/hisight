@@ -1,63 +1,56 @@
 package hsserver
 
 import (
-	"database/sql"
-	"flag"
+	"context"
 	"fmt"
-	"log"
-	"log/slog"
 	"net"
-	"os"
 
 	"github.com/jacobmiller22/hisight/internal/commands"
-	pb "github.com/jacobmiller22/hisight/internal/commands/proto"
-	"github.com/jacobmiller22/hisight/internal/commands/repository"
+	"github.com/jacobmiller22/hisight/internal/commands/protocol/pb"
+	repository "github.com/jacobmiller22/hisight/internal/commands/protocol/sql"
+	"github.com/jacobmiller22/hisight/internal/config"
+	"github.com/jacobmiller22/hisight/internal/logkeys"
+
+	"github.com/jacobmiller22/gossentials/clog"
+
 	_ "github.com/mattn/go-sqlite3"
 	"google.golang.org/grpc"
 )
 
-func HsServerGrpc(args []string) error {
+func HsServerGrpc(ctx context.Context, args []string) error {
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	l := clog.FromContext(ctx)
+	cfg := config.LoadConfig(args)
 
-	fset := flag.NewFlagSet("hslog", flag.ContinueOnError)
+	l.Debug(logkeys.CommandStart, logkeys.Command, "HSSERVER_GRPC", logkeys.Config, cfg)
 
-	var cfg config
-	fset.IntVar(&cfg.http.port, "http-port", 9001, "Port to listen on for HTTP requests")
-	fset.StringVar(&cfg.db.dsn, "db-dsn", ":memory:", "DSN to database")
-	if err := fset.Parse(args); err != nil {
-		return nil // NOTE: Hack, ContinueOnError prints usage for us
-
-	}
-
-	db, err := sql.Open("sqlite3", cfg.db.dsn)
+	db, err := openDb(cfg.DB.DSN)
 	if err != nil {
-		log.Fatalf("Error opening db: %v\n", err)
+		l.Info(logkeys.DbConnectError, "dsn", cfg.DB.DSN, logkeys.Error, err)
 	}
 	defer db.Close()
 
-	_, err = db.Exec("CREATE TABLE IF NOT EXISTS commands (id INTEGER PRIMARY KEY, command_text TEXT NOT NULL, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP);")
+	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", cfg.Server.GRPC.Port))
 	if err != nil {
-		log.Fatalf("Error creating commands table: %v\n", err)
-	}
-
-	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", cfg.http.port))
-	if err != nil {
-		log.Fatalf("Failed trying to listen on port %d: %v", cfg.http.port, err)
+		l.Info("SERVER_INIT_LISTEN_ERROR", "port", cfg.Server.GRPC.Port, "protocol", "grpc", "err", err)
 	}
 
 	var opts []grpc.ServerOption
 
 	grpcServer := grpc.NewServer(opts...)
 	cmdRepo := repository.New(db)
-	cmdSvc := commands.CommandService{
+	cmdSvc := &commands.CommandService{
 		Repo:   cmdRepo,
-		Logger: logger,
+		Logger: l,
 	}
-	pb.RegisterCommandServiceServer(grpcServer, cmdSvc)
+	cmdSvr := &pb.GrpcCommandServiceServer{
+		Cmd: cmdSvc,
+	}
+	pb.RegisterCommandServiceServer(grpcServer, cmdSvr)
 
-	log.Printf("Starting server on port %d\n", cfg.http.port)
-
-	grpcServer.Serve(listener)
+	l.Info("SERVER_INIT_SERVE_START", "port", cfg.Server.GRPC.Port, "protocol", "grpc")
+	if err := grpcServer.Serve(listener); err != nil {
+		l.Info("SERVER_INIT_SERVE_ERROR", "port", cfg.Server.GRPC.Port, "protocol", "grpc", "err", err)
+	}
 	return nil
 }
