@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+option go_package = "github.com/jacobmiller22/hisight/internal/commands/protocol/pb";
+
+
+import "google/protobuf/empty.proto";
+
+
+
+package pb;
+
+
+// Interface exported by the server.
+service CommandService {
+    rpc LogCommand(Command) returns (google.protobuf.Empty) {}
+}
+
+message Command {
+    string shell = 1;
+    string command = 2;
+}

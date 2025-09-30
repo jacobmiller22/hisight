@@ -1,9 +1,9 @@
 .DEFAULT:
 	build
 
-.PHONY: fmt vet clean build build-amd64 build-proto build-hisight-hook build-hisight-hook build-hisight-log-server build-hisight-server build-bash-hook test
+.PHONY: fmt vet clean build build-amd64 build-proto build-sql build-hs clean test
 
-build: build-proto build-hisight-hook build-hisight-log-server build-hisight-server build-bash-hook
+build: build-proto build-hs
 
 build-amd64:
 	GOOS=linux GOARCH=amd64 make build
@@ -15,24 +15,16 @@ vet: fmt
 	go vet ./...
 
 build-proto:
-	protoc --go_out=./internal/commands --go_opt=paths=source_relative --go-grpc_out=./internal/commands --go-grpc_opt=paths=source_relative proto/history.proto
+	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative internal/commands/protocol/pb/commands.proto
 
-build-hisight-hook: vet
-	go build -o ./bin/hisight-hook ./cmd/client-hook
+build-sql:
+	sqlc generate
 
-build-hisight-log-server: vet
-	go build -o ./bin/hisight-log-server ./cmd/log-server
-
-build-hisight-server: vet
-	go build -o ./bin/hisight-server ./cmd/hisight-server
-
-build-bash-hook: vet
-	go build -o ./bin/bashHook ./cmd/shellhook
-
+build-hs: vet
+	go build -o ./bin/hslog ./cmd/hslog
 
 clean:
 	rm -rf ./bin/*
-
 
 test: 
 	go test -v ./...
